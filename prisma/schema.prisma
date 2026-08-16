@@ -1,0 +1,651 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────────────────────────────────
+
+enum Role {
+  INVESTOR
+  DEVELOPER
+  ADMIN
+}
+
+enum IntegrationMode {
+  LIVE
+  MOCK
+  DISCONNECTED
+  ERROR
+}
+
+enum IntegrationCategory {
+  ADVERTISING
+  ATTRIBUTION
+  REVENUE
+  PAYMENT
+}
+
+enum IntegrationProvider {
+  TIKTOK
+  META
+  GOOGLE_ADS
+  APPSFLYER
+  ADJUST
+  REVENUECAT
+  APPLE
+  GOOGLE_PLAY
+  STRIPE
+  DEMO
+}
+
+enum Platform {
+  IOS
+  ANDROID
+  WEB
+}
+
+enum OpportunityStatus {
+  DRAFT
+  PENDING_APPROVAL
+  OPEN
+  SUPERSEDED
+  CANCELLED
+}
+
+enum InvestmentStatus {
+  PENDING
+  ACTIVE
+  COMPLETED
+  CANCELLED
+  REFUNDED
+}
+
+enum AttributionConfidence {
+  HIGH
+  MEDIUM
+  LOW
+  UNATTRIBUTED
+}
+
+enum LedgerEntryType {
+  INVESTMENT_DEPOSIT
+  CAMPAIGN_ALLOCATION
+  AD_SPEND
+  ATTRIBUTED_REVENUE
+  INVESTOR_REVENUE_SHARE
+  DEVELOPER_REVENUE_SHARE
+  PLATFORM_FEE
+  INVESTOR_PAYOUT
+  REFUND
+  REVERSAL
+}
+
+enum SyncJobType {
+  ADVERTISING
+  ATTRIBUTION
+  REVENUE
+  PAYMENT
+}
+
+enum SyncJobStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+}
+
+enum WebhookStatus {
+  RECEIVED
+  PROCESSED
+  FAILED
+  DUPLICATE
+}
+
+enum PayoutStatus {
+  PENDING
+  PAID
+  FAILED
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Identity
+// ─────────────────────────────────────────────────────────────────────────
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  passwordHash  String
+  name          String
+  role          Role
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  investorProfile   InvestorProfile?
+  developerProfile  DeveloperProfile?
+  auditEvents       AuditEvent[]
+
+  @@index([role])
+}
+
+model InvestorProfile {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  displayName String?
+  approved    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  investments Investment[]
+  payouts     Payout[]
+}
+
+model DeveloperProfile {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  displayName String
+  bio         String?
+  approved    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  apps App[]
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Apps & Integrations
+// ─────────────────────────────────────────────────────────────────────────
+
+model App {
+  id                String   @id @default(cuid())
+  developerId       String
+  developer         DeveloperProfile @relation(fields: [developerId], references: [id], onDelete: Cascade)
+
+  name              String
+  category          String
+  description       String?
+  logoUrl           String?
+  appStoreUrl       String?
+  googlePlayUrl     String?
+  pricingModel      String?
+  subscriptionPrice Decimal? @db.Decimal(12, 2)
+
+  approved          Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  integrationConnections IntegrationConnection[]
+  advertisingAccounts    AdvertisingAccount[]
+  campaigns              MarketingCampaign[]
+  attributedInstalls     AttributedInstall[]
+  attributedEvents       AttributedEvent[]
+  customers              AppCustomer[]
+  transactions           AppTransaction[]
+  opportunities          InvestmentOpportunity[]
+
+  @@index([developerId])
+}
+
+model IntegrationConnection {
+  id                    String              @id @default(cuid())
+  appId                 String
+  app                   App                 @relation(fields: [appId], references: [id], onDelete: Cascade)
+
+  category              IntegrationCategory
+  provider              IntegrationProvider
+  mode                  IntegrationMode     @default(MOCK)
+
+  externalAccountId     String?
+  credentialsEncrypted  String?
+  lastError             String?
+  connectedAt           DateTime?
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  advertisingAccounts   AdvertisingAccount[]
+  syncJobs              SyncJob[]
+
+  @@unique([appId, category, provider])
+  @@index([appId])
+}
+
+model AdvertisingAccount {
+  id                       String   @id @default(cuid())
+  appId                    String
+  app                      App      @relation(fields: [appId], references: [id], onDelete: Cascade)
+  integrationConnectionId  String
+  integrationConnection    IntegrationConnection @relation(fields: [integrationConnectionId], references: [id], onDelete: Cascade)
+
+  provider                 IntegrationProvider
+  externalAccountId        String
+  name                     String
+
+  campaigns                MarketingCampaign[]
+
+  @@index([appId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Advertising
+// ─────────────────────────────────────────────────────────────────────────
+
+model MarketingCampaign {
+  id                    String   @id @default(cuid())
+  appId                 String
+  app                   App      @relation(fields: [appId], references: [id], onDelete: Cascade)
+  advertisingAccountId  String
+  advertisingAccount    AdvertisingAccount @relation(fields: [advertisingAccountId], references: [id], onDelete: Cascade)
+
+  provider              IntegrationProvider
+  externalCampaignId    String
+  name                  String
+  dailyBudget           Decimal  @db.Decimal(12, 2)
+  status                String   @default("ACTIVE")
+  startDate             DateTime
+  endDate               DateTime?
+  isMock                Boolean  @default(true)
+  createdAt             DateTime @default(now())
+
+  dailyMetrics          CampaignDailyMetric[]
+  attributedInstalls    AttributedInstall[]
+  attributedEvents      AttributedEvent[]
+  revenueAttributions   RevenueAttribution[]
+  capitalAllocations    CapitalAllocation[]
+
+  @@index([appId])
+  @@index([advertisingAccountId])
+}
+
+model CampaignDailyMetric {
+  id           String   @id @default(cuid())
+  campaignId   String
+  campaign     MarketingCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  date         DateTime @db.Date
+  spend        Decimal  @db.Decimal(12, 2)
+  impressions  Int
+  clicks       Int
+  conversions  Int
+  currency     String   @default("USD")
+
+  provider     IntegrationProvider
+  externalId   String?
+  syncedAt     DateTime @default(now())
+  sourceType   String   @default("API")
+  isMock       Boolean  @default(true)
+
+  @@unique([campaignId, date])
+  @@index([campaignId, date])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Attribution
+// ─────────────────────────────────────────────────────────────────────────
+
+model AttributedInstall {
+  id                    String   @id @default(cuid())
+  appId                 String
+  app                   App      @relation(fields: [appId], references: [id], onDelete: Cascade)
+  campaignId            String?
+  campaign              MarketingCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  externalUserId        String
+  installedAt           DateTime
+  mediaSource            String
+  campaignName          String?
+  adGroupId             String?
+  adId                  String?
+  country               String?
+
+  attributionProvider   IntegrationProvider
+  syncedAt              DateTime @default(now())
+  isMock                Boolean  @default(true)
+
+  appCustomerId         String?
+  appCustomer           AppCustomer? @relation(fields: [appCustomerId], references: [id], onDelete: SetNull)
+
+  @@unique([appId, externalUserId])
+  @@index([appId])
+  @@index([campaignId])
+  @@index([externalUserId])
+}
+
+model AttributedEvent {
+  id                    String   @id @default(cuid())
+  appId                 String
+  app                   App      @relation(fields: [appId], references: [id], onDelete: Cascade)
+  campaignId            String?
+  campaign              MarketingCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  externalUserId        String
+  eventName             String
+  eventTime             DateTime
+  revenue               Decimal? @db.Decimal(12, 2)
+  currency              String?
+
+  attributionProvider   IntegrationProvider
+  syncedAt              DateTime @default(now())
+  isMock                Boolean  @default(true)
+
+  @@unique([appId, externalUserId, eventName, eventTime])
+  @@index([appId])
+  @@index([campaignId])
+  @@index([externalUserId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Revenue
+// ─────────────────────────────────────────────────────────────────────────
+
+model AppCustomer {
+  id             String   @id @default(cuid())
+  appId          String
+  app            App      @relation(fields: [appId], references: [id], onDelete: Cascade)
+
+  appUserId      String
+  externalUserId String?
+  country        String?
+  firstSeenAt    DateTime @default(now())
+  createdAt      DateTime @default(now())
+
+  transactions   AppTransaction[]
+  installs       AttributedInstall[]
+
+  @@unique([appId, appUserId])
+  @@index([appId])
+}
+
+model AppTransaction {
+  id             String   @id @default(cuid())
+  appId          String
+  app            App      @relation(fields: [appId], references: [id], onDelete: Cascade)
+  appCustomerId  String
+  appCustomer    AppCustomer @relation(fields: [appCustomerId], references: [id], onDelete: Cascade)
+
+  transactionId  String   @unique
+  productId      String
+  amount         Decimal  @db.Decimal(12, 2)
+  currency       String   @default("USD")
+  purchasedAt    DateTime
+  refundedAt     DateTime?
+  platform       Platform
+
+  provider       IntegrationProvider @default(REVENUECAT)
+  syncedAt       DateTime @default(now())
+  isMock         Boolean  @default(true)
+
+  revenueAttributions RevenueAttribution[]
+
+  @@index([appId])
+  @@index([appCustomerId])
+  @@index([purchasedAt])
+}
+
+model RevenueAttribution {
+  id                  String   @id @default(cuid())
+  transactionId       String
+  transaction         AppTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  campaignId          String
+  campaign            MarketingCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  investmentId        String?
+  investment          Investment? @relation(fields: [investmentId], references: [id], onDelete: SetNull)
+
+  attributionProvider IntegrationProvider
+  confidence          AttributionConfidence
+  attributedAmount    Decimal  @db.Decimal(12, 2)
+  attributionMethod   String
+
+  createdAt           DateTime @default(now())
+  reversedAt          DateTime?
+  reversalOfId        String?  @unique
+  reversalOf          RevenueAttribution? @relation("Reversal", fields: [reversalOfId], references: [id], onDelete: SetNull)
+  reversal            RevenueAttribution? @relation("Reversal")
+
+  revenueShareAccruals RevenueShareAccrual[]
+
+  @@index([campaignId])
+  @@index([investmentId])
+  @@index([transactionId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Investment marketplace
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * A developer's standing revenue-share terms for an app — NOT a
+ * per-campaign fundraising round. There is no funding target and no
+ * threshold to hit: the moment an investor contributes, their money
+ * starts backing whichever marketing campaigns the app is running
+ * (across any channel), and revenue share accrues immediately.
+ *
+ * Changing terms never edits an existing row — see setFundingTerms in
+ * src/lib/actions/developer-actions.ts. The current OPEN row is marked
+ * SUPERSEDED (endDate set) and a new OPEN row is created. Every existing
+ * Investment keeps pointing at whichever row it was made under, so
+ * investors keep exactly the terms they signed up for; only new money
+ * gets the new terms. Multiple rows can be "live" at once in the sense
+ * that a SUPERSEDED row's investments keep accruing until each
+ * individually hits its own return cap.
+ */
+model InvestmentOpportunity {
+  id                             String   @id @default(cuid())
+  appId                          String
+  app                            App      @relation(fields: [appId], references: [id], onDelete: Cascade)
+
+  title                          String
+  description                    String
+
+  amountFunded                   Decimal  @db.Decimal(12, 2) @default(0)
+  minimumInvestment              Decimal  @db.Decimal(12, 2) @default(50)
+
+  investorRevenueSharePercent    Decimal  @db.Decimal(5, 2)
+  developerRevenueSharePercent   Decimal  @db.Decimal(5, 2)
+  returnCapMultiple              Decimal  @db.Decimal(5, 2)
+
+  startDate                      DateTime?
+  endDate                        DateTime?
+  status                         OpportunityStatus @default(DRAFT)
+
+  historicalROAS                 Decimal? @db.Decimal(6, 3)
+  historicalCAC                  Decimal? @db.Decimal(10, 2)
+  historicalLTV                  Decimal? @db.Decimal(10, 2)
+
+  riskScore                      Int?
+
+  createdAt                      DateTime @default(now())
+  updatedAt                      DateTime @updatedAt
+
+  investments                    Investment[]
+  riskAssessment                 RiskAssessment?
+  ledgerEntries                  LedgerEntry[]
+
+  @@index([appId])
+  @@index([status])
+}
+
+model Investment {
+  id                     String   @id @default(cuid())
+  investorId             String
+  investor               InvestorProfile @relation(fields: [investorId], references: [id], onDelete: Cascade)
+  opportunityId          String
+  opportunity            InvestmentOpportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  principalAmount        Decimal  @db.Decimal(12, 2)
+  capitalDeployed        Decimal  @db.Decimal(12, 2) @default(0)
+  attributableRevenue    Decimal  @db.Decimal(12, 2) @default(0)
+  investorRevenueEarned  Decimal  @db.Decimal(12, 2) @default(0)
+  developerRevenueEarned Decimal  @db.Decimal(12, 2) @default(0)
+  amountPaidToInvestor   Decimal  @db.Decimal(12, 2) @default(0)
+  currentReturnMultiple  Decimal  @db.Decimal(6, 3) @default(0)
+
+  status                 InvestmentStatus @default(PENDING)
+
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  capitalAllocations     CapitalAllocation[]
+  revenueShareAccruals   RevenueShareAccrual[]
+  revenueAttributions    RevenueAttribution[]
+  payouts                Payout[]
+  ledgerEntries          LedgerEntry[]
+
+  @@index([investorId])
+  @@index([opportunityId])
+  @@index([status])
+}
+
+model CapitalAllocation {
+  id           String   @id @default(cuid())
+  investmentId String
+  investment   Investment @relation(fields: [investmentId], references: [id], onDelete: Cascade)
+  campaignId   String
+  campaign     MarketingCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  amount       Decimal  @db.Decimal(12, 2)
+  allocatedAt  DateTime @default(now())
+  isMock       Boolean  @default(true)
+
+  @@index([investmentId])
+  @@index([campaignId])
+}
+
+model RevenueShareAccrual {
+  id                    String   @id @default(cuid())
+  investmentId          String
+  investment            Investment @relation(fields: [investmentId], references: [id], onDelete: Cascade)
+  revenueAttributionId  String
+  revenueAttribution    RevenueAttribution @relation(fields: [revenueAttributionId], references: [id], onDelete: Cascade)
+
+  investorAmount        Decimal  @db.Decimal(12, 2)
+  developerAmount       Decimal  @db.Decimal(12, 2)
+
+  accruedAt             DateTime @default(now())
+  reversedAt            DateTime?
+
+  @@index([investmentId])
+}
+
+model Payout {
+  id               String   @id @default(cuid())
+  investorId       String
+  investor         InvestorProfile @relation(fields: [investorId], references: [id], onDelete: Cascade)
+  investmentId     String?
+  investment       Investment? @relation(fields: [investmentId], references: [id], onDelete: SetNull)
+
+  amount           Decimal  @db.Decimal(12, 2)
+  status           PayoutStatus @default(PENDING)
+  provider         IntegrationProvider @default(DEMO)
+  externalPayoutId String?
+  isMock           Boolean  @default(true)
+
+  createdAt        DateTime @default(now())
+  paidAt           DateTime?
+
+  @@index([investorId])
+  @@index([investmentId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Ledger (double-entry style, append-only)
+// ─────────────────────────────────────────────────────────────────────────
+
+model LedgerEntry {
+  id             String   @id @default(cuid())
+  type           LedgerEntryType
+
+  amount         Decimal  @db.Decimal(12, 2)
+  currency       String   @default("USD")
+
+  investmentId   String?
+  investment     Investment? @relation(fields: [investmentId], references: [id], onDelete: SetNull)
+  opportunityId  String?
+  opportunity    InvestmentOpportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+
+  description    String
+  metadata       Json?
+  createdAt      DateTime @default(now())
+
+  @@index([investmentId])
+  @@index([opportunityId])
+  @@index([type])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Risk
+// ─────────────────────────────────────────────────────────────────────────
+// (Whole-campaign bear/base/bull projections were dropped in favor of the
+// per-investor "if I put in $X" calculator — see
+// src/lib/engine/projection-math.ts — which needs no persisted row since
+// it's computed live from the investor's proposed amount.)
+
+model RiskAssessment {
+  id             String   @id @default(cuid())
+  opportunityId  String   @unique
+  opportunity    InvestmentOpportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  score          Int
+  grade          String
+  positives      Json
+  negatives      Json
+
+  createdAt      DateTime @default(now())
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Sync & webhooks & audit
+// ─────────────────────────────────────────────────────────────────────────
+
+model SyncJob {
+  id                       String   @id @default(cuid())
+  integrationConnectionId  String
+  integrationConnection    IntegrationConnection @relation(fields: [integrationConnectionId], references: [id], onDelete: Cascade)
+
+  jobType                  SyncJobType
+  status                   SyncJobStatus @default(PENDING)
+  lastSuccessfulSync       DateTime?
+  lastAttemptedSync        DateTime?
+  error                    String?
+  recordsImported          Int      @default(0)
+
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@index([integrationConnectionId])
+}
+
+model WebhookEvent {
+  id              String   @id @default(cuid())
+  provider        IntegrationProvider
+  externalEventId String
+  payloadHash     String
+  payload         Json
+  status          WebhookStatus @default(RECEIVED)
+
+  receivedAt      DateTime @default(now())
+  processedAt     DateTime?
+
+  @@unique([provider, externalEventId])
+  @@index([provider])
+}
+
+model AuditEvent {
+  id          String   @id @default(cuid())
+  actorUserId String?
+  actor       User?    @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  action      String
+  entityType  String
+  entityId    String
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([actorUserId])
+}

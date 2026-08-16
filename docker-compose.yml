@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: growthfund
+      POSTGRES_PASSWORD: growthfund
+      POSTGRES_DB: growthfund
+    ports:
+      - "5433:5432"
+    volumes:
+      - growthfund_pgdata:/var/lib/postgresql/data
+
+volumes:
+  growthfund_pgdata:
