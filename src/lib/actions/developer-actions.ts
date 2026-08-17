@@ -159,3 +159,79 @@ export async function setFundingTerms(_prevState: { error?: string; opportunityI
   revalidatePath("/developer");
   redirect(`/developer/apps/${appId}`);
 }
+
+const PerformanceOfferSchema = z.object({
+  title: z.string().min(1).max(200),
+  description: z.string().min(1).max(4000),
+  payoutPerConversion: z.coerce.number().positive(),
+  marketplaceFeePercent: z.coerce.number().min(0).max(50).default(10),
+  minBudget: z.coerce.number().positive().default(50),
+  maxBudget: z.coerce.number().positive().optional(),
+});
+
+/**
+ * Creates a CPA performance offer for an app — "$35 per verified
+ * subscriber," not a revenue share. This is the pivot: a developer posts
+ * a paid-per-result gig, a marketer accepts it, picks from the
+ * pre-approved creative/targeting options below, and gets paid a flat
+ * rate per customer they deliver. See cpa-payout.ts for the payout math
+ * and COMPLIANCE_NOTES.md for why this is a deliberately different
+ * transaction shape than the standing revenue-share terms model.
+ *
+ * Creatives/targeting templates arrive as parallel FormData arrays
+ * (creativeName[], creativeChannel[], ... ) since this is a small, fixed
+ * set of options per offer, not open-ended user content.
+ */
+export async function createPerformanceOffer(_prevState: { error?: string; offerId?: string }, formData: FormData) {
+  const profile = await requireDeveloperProfile();
+  const appId = formData.get("appId") as string;
+  await prisma.app.findFirstOrThrow({ where: { id: appId, developerId: profile.id } });
+
+  const parsed = PerformanceOfferSchema.safeParse({
+    title: formData.get("title"),
+    description: formData.get("description"),
+    payoutPerConversion: formData.get("payoutPerConversion"),
+    marketplaceFeePercent: formData.get("marketplaceFeePercent") || 10,
+    minBudget: formData.get("minBudget") || 50,
+    maxBudget: formData.get("maxBudget") || undefined,
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+
+  const creativeNames = formData.getAll("creativeName") as string[];
+  const creativeChannels = formData.getAll("creativeChannel") as IntegrationProvider[];
+  const creativeDescriptions = formData.getAll("creativeDescription") as string[];
+  const targetingNames = formData.getAll("targetingName") as string[];
+  const targetingChannels = formData.getAll("targetingChannel") as IntegrationProvider[];
+  const targetingDescriptions = formData.getAll("targetingDescription") as string[];
+
+  const creatives = creativeNames
+    .map((name, i) => ({ name, channel: creativeChannels[i], description: creativeDescriptions[i] }))
+    .filter((c) => c.name?.trim());
+  const targetingTemplates = targetingNames
+    .map((name, i) => ({ name, channel: targetingChannels[i], description: targetingDescriptions[i] }))
+    .filter((t) => t.name?.trim());
+
+  if (creatives.length === 0) return { error: "Add at least one approved creative" };
+  if (targetingTemplates.length === 0) return { error: "Add at least one approved targeting template" };
+
+  const performance = await getAppPerformanceSummary(appId, 30);
+
+  await prisma.performanceOffer.create({
+    data: {
+      appId,
+      title: parsed.data.title,
+      description: parsed.data.description,
+      payoutPerConversion: parsed.data.payoutPerConversion,
+      marketplaceFeePercent: parsed.data.marketplaceFeePercent,
+      minBudget: parsed.data.minBudget,
+      maxBudget: parsed.data.maxBudget,
+      historicalCPA: performance.cac || undefined,
+      status: "PENDING_APPROVAL",
+      creatives: { create: creatives },
+      targetingTemplates: { create: targetingTemplates },
+    },
+  });
+
+  revalidatePath("/developer");
+  redirect(`/developer/apps/${appId}`);
+}

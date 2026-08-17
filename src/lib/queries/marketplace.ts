@@ -93,6 +93,28 @@ export async function getOpportunityDetail(opportunityId: string) {
   };
 }
 
+export async function listPerformanceOffers(params?: { category?: string }) {
+  return prisma.performanceOffer.findMany({
+    where: {
+      status: "OPEN",
+      ...(params?.category ? { app: { category: params.category } } : {}),
+    },
+    include: { app: { include: { developer: true } } },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
+export async function getPerformanceOfferDetail(offerId: string) {
+  return prisma.performanceOffer.findUnique({
+    where: { id: offerId },
+    include: {
+      app: { include: { developer: true } },
+      creatives: true,
+      targetingTemplates: true,
+    },
+  });
+}
+
 export async function getMarketplaceStats() {
   const [totalFunded, activeOpportunities, totalInvestors, totalDevelopers] = await Promise.all([
     prisma.investmentOpportunity.aggregate({ _sum: { amountFunded: true } }),

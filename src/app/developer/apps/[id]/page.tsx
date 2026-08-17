@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireDeveloperProfile } from "@/lib/authz";
-import { getAppPerformanceSummary, getAppObligations } from "@/lib/queries/developer";
+import { getAppPerformanceSummary, getAppObligations, getAppPerformanceOffers } from "@/lib/queries/developer";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { DataSourceBadge } from "@/components/data-source-badge";
 import { ConnectionStatusBadge } from "@/components/developer/connection-status-badge";
 import { DemoDataButton } from "@/components/developer/demo-data-button";
 import { FundingTermsForm } from "@/components/developer/funding-terms-form";
+import { PerformanceOfferForm } from "@/components/developer/performance-offer-form";
 import { PROVIDER_LABELS } from "@/components/developer/provider-labels";
 import { formatCurrency, formatMultiple, formatPercent } from "@/lib/utils";
 import type { IntegrationConnection } from "@/generated/prisma/client";
@@ -29,7 +30,11 @@ export default async function DeveloperAppDetailPage({ params }: { params: Promi
 
   const hasOpenTerms = await prisma.investmentOpportunity.findFirst({ where: { appId: id, status: "OPEN" } });
 
-  const [performance, obligations] = await Promise.all([getAppPerformanceSummary(id, 30), getAppObligations(id)]);
+  const [performance, obligations, performanceOffers] = await Promise.all([
+    getAppPerformanceSummary(id, 30),
+    getAppObligations(id),
+    getAppPerformanceOffers(id),
+  ]);
 
   const revenueConnection = app.integrationConnections.find((c) => c.category === "REVENUE");
   const attributionConnection = app.integrationConnections.find((c) => c.category === "ATTRIBUTION");
@@ -172,6 +177,52 @@ export default async function DeveloperAppDetailPage({ params }: { params: Promi
               ))}
             </div>
           )}
+        </section>
+
+        {/* Performance offers (CPA marketplace) */}
+        <section>
+          <h2 className="text-lg font-semibold text-slate-900">Performance offers</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Pay marketers a flat rate per verified subscriber they deliver, instead of a revenue share. A marketer
+            picks one of your approved creatives and targeting templates, funds their own ad spend directly with the
+            ad platform, and you owe them nothing until a real paying subscriber shows up.
+          </p>
+
+          {performanceOffers.length > 0 && (
+            <div className="mt-4 flex flex-col gap-4">
+              {performanceOffers.map(({ offer, campaignCount, conversionsDelivered, grossOwed }) => (
+                <Card key={offer.id}>
+                  <CardHeader>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <CardTitle>{offer.title}</CardTitle>
+                      <Badge variant="outline">{offer.status}</Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="flex flex-col gap-4">
+                    <p className="text-xs text-slate-500">
+                      {offer.creatives.length} approved creative{offer.creatives.length === 1 ? "" : "s"} ·{" "}
+                      {offer.targetingTemplates.length} targeting template{offer.targetingTemplates.length === 1 ? "" : "s"}
+                    </p>
+                    <div className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
+                      <Term label="Payout per subscriber" value={formatCurrency(offer.payoutPerConversion)} />
+                      <Term label="Marketplace fee" value={formatPercent(offer.marketplaceFeePercent)} />
+                      <Term label="Active campaigns" value={String(campaignCount)} />
+                      <Term label="Delivered / owed" value={`${conversionsDelivered} · ${formatCurrency(grossOwed)}`} />
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          <Card className="mt-4">
+            <CardHeader>
+              <CardTitle className="text-base">Create a new performance offer</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <PerformanceOfferForm appId={app.id} />
+            </CardContent>
+          </Card>
         </section>
       </div>
     </div>

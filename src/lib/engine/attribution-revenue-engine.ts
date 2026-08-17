@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import type { AttributionConfidence } from "@/generated/prisma/client";
 import { recordLedgerEntry } from "@/lib/ledger/ledger";
 import { applyRevenueWaterfall, eligibleAttributedAmount, isEligibleConfidence } from "./revenue-share";
+import { processCpaConversion } from "./cpa-payout";
 
 const HIGH_CONFIDENCE_WINDOW_DAYS = 30;
 
@@ -84,6 +85,11 @@ async function processTransaction(transactionId: string) {
     return;
   }
 
+  const campaign = await prisma.marketingCampaign.findUniqueOrThrow({
+    where: { id: campaignId },
+    select: { marketerId: true },
+  });
+
   await prisma.$transaction(async (tx) => {
     const attribution = await tx.revenueAttribution.create({
       data: {
@@ -95,6 +101,21 @@ async function processTransaction(transactionId: string) {
         attributionMethod,
       },
     });
+
+    // CPA marketplace pivot: a marketer-owned campaign is never split
+    // through the revenue-share waterfall at all — it's a flat one-time
+    // payout for delivering a new paying customer, not a share of their
+    // revenue. Completely separate payout model, same attribution input.
+    if (campaign.marketerId) {
+      if (!isEligibleConfidence(confidence)) return;
+      await processCpaConversion(tx, {
+        campaignId,
+        appCustomerId: transaction.appCustomerId,
+        revenueAttributionId: attribution.id,
+        transactionLabel: transaction.transactionId,
+      });
+      return;
+    }
 
     const eligible = eligibleAttributedAmount(Number(transaction.amount), confidence);
     if (eligible <= 0) return;

@@ -24,7 +24,7 @@ import { prisma } from "../src/lib/prisma";
 import { SeededRandom } from "../src/lib/seeded-random";
 import { runFullSyncForApp } from "../src/lib/sync/run-sync";
 import { createInvestment } from "../src/lib/engine/investment";
-import { runPayoutForInvestment } from "../src/lib/engine/payout";
+import { runPayoutForInvestment, runPayoutForCampaign } from "../src/lib/engine/payout";
 import { handleTransactionRefund } from "../src/lib/engine/refund";
 import { computeRiskScoreForOpportunity } from "../src/lib/engine/risk-score";
 import { openFundingTerms } from "../src/lib/engine/funding-terms";
@@ -70,7 +70,7 @@ const APPS: AppSpec[] = [
     category: "Productivity",
     description: "A focus-timer and deep-work tracker for people who context-switch too much.",
     pricingModel: "subscription",
-    subscriptionPrice: 9.99,
+    subscriptionPrice: 14.99,
     channel: "TIKTOK",
     secondChannel: { channel: "META", label: "Meta Retargeting" },
     termsChangeDemo: true,
@@ -124,7 +124,7 @@ const APPS: AppSpec[] = [
     category: "Education",
     description: "Spaced-repetition flashcards with exam countdown planning for students.",
     pricingModel: "subscription",
-    subscriptionPrice: 5.99,
+    subscriptionPrice: 12.99,
     channel: "TIKTOK",
     secondChannel: { channel: "GOOGLE_ADS", label: "Search Intent Campaign" },
     termsChangeDemo: true,
@@ -304,6 +304,65 @@ async function main() {
   opportunities.push(...newVintageOpportunities);
   console.log(`Created additional investments under revised terms (${newVintageOpportunities.length} apps changed terms) — ${investmentCount} total investments`);
 
+  // 8.5. CPA marketplace pivot demo — one performance offer plus one
+  // launched marketer campaign, layered onto an app that already has
+  // standing revenue-share terms, showing both transaction models can
+  // coexist on the same app. Created before the post-funding sync below
+  // so its activity gets picked up by that SAME sync pass — no separate
+  // sync call, no risk of double-processing already-synced dates.
+  const cpaApp = apps.find(({ app }) => app.name === "FocusFlow")!.app;
+  const cpaAppPerformance = await computeAppHistoricalPerformance(cpaApp.id, preFundingStart, preFundingEnd);
+  const offer = await prisma.performanceOffer.create({
+    data: {
+      appId: cpaApp.id,
+      title: `${cpaApp.name} — US iOS growth offer`,
+      description: `We pay $32 for every verified subscriber you deliver to ${cpaApp.name}. Pick an approved creative and audience below, fund your own ad spend directly with the ad platform, and get paid once a real subscriber shows up.`,
+      payoutPerConversion: 32,
+      marketplaceFeePercent: 10,
+      minBudget: 100,
+      historicalCPA: cpaAppPerformance.cac || 8,
+      status: "OPEN",
+      creatives: {
+        create: [
+          { name: "Creative A — Testimonial", channel: "TIKTOK", description: "15s user testimonial, UGC style" },
+          { name: "Creative B — Feature demo", channel: "TIKTOK", description: "Screen-recorded feature walkthrough" },
+        ],
+      },
+      targetingTemplates: {
+        create: [
+          { name: "Broad US", channel: "TIKTOK", description: "US, 18-45, broad interest targeting" },
+          { name: "Productivity enthusiasts", channel: "TIKTOK", description: "US, interest in productivity/self-improvement apps" },
+        ],
+      },
+    },
+    include: { creatives: true, targetingTemplates: true },
+  });
+
+  const marketer = investors[0];
+  const marketerAccount = await prisma.advertisingAccount.findFirstOrThrow({ where: { appId: cpaApp.id, provider: "TIKTOK" } });
+  const marketerCampaignStart = daysAgo(TERMS_CHANGE_DAY - 5);
+  await prisma.marketingCampaign.create({
+    data: {
+      appId: cpaApp.id,
+      advertisingAccountId: marketerAccount.id,
+      provider: "TIKTOK",
+      externalCampaignId: `marketer-campaign-${cpaApp.id}`,
+      name: `${cpaApp.name} — ${offer.creatives[0].name} / ${offer.targetingTemplates[0].name}`,
+      dailyBudget: 25,
+      status: "ACTIVE",
+      startDate: marketerCampaignStart,
+      isMock: true,
+      marketerId: marketer.id,
+      offerId: offer.id,
+      creativeId: offer.creatives[0].id,
+      targetingTemplateId: offer.targetingTemplates[0].id,
+      declaredBudget: 500,
+      durationDays: TERMS_CHANGE_DAY - 5,
+      launchedAt: marketerCampaignStart,
+    },
+  });
+  console.log(`Created 1 performance offer with a launched marketer campaign for ${cpaApp.name}`);
+
   // 9. Post-funding sync — this is where revenue share actually accrues,
   // pooled across every vintage of terms an app has had.
   const postFundingStart = daysAgo(HISTORY_DAYS - SPLIT_DAY);
@@ -341,6 +400,13 @@ async function main() {
     }
   }
   console.log(`Ran ${payoutCount} investor payouts`);
+
+  // 11.5. Payout for the demo marketer campaign, if it earned anything.
+  const marketerCampaignForPayout = await prisma.marketingCampaign.findFirst({ where: { appId: cpaApp.id, offerId: offer.id } });
+  if (marketerCampaignForPayout) {
+    const marketerPayout = await runPayoutForCampaign(marketerCampaignForPayout.id);
+    console.log(marketerPayout ? `Paid out $${marketerPayout.paid} to the demo marketer` : "No marketer payout owed yet");
+  }
 
   console.log("\nDemo login credentials (all use password: " + DEMO_PASSWORD + "):");
   console.log("  Admin:     admin@growthfund.dev");

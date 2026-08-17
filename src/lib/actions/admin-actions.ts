@@ -37,6 +37,14 @@ export async function approveOpportunity(opportunityId: string) {
   revalidatePath("/opportunities");
 }
 
+export async function approveOffer(offerId: string) {
+  await requireRole("ADMIN");
+  await prisma.performanceOffer.update({ where: { id: offerId }, data: { status: "OPEN" } });
+  await logAudit("APPROVE_OFFER", "PerformanceOffer", offerId);
+  revalidatePath("/admin");
+  revalidatePath("/offers");
+}
+
 export async function pauseCampaign(campaignId: string) {
   await requireRole("ADMIN");
   await prisma.marketingCampaign.update({ where: { id: campaignId }, data: { status: "PAUSED" } });

@@ -23,6 +23,7 @@ export async function recordLedgerEntry(
     currency?: string;
     investmentId?: string;
     opportunityId?: string;
+    campaignId?: string;
     description: string;
     metadata?: Record<string, unknown>;
     /** Only for seeding believable historical demo data. */
@@ -36,6 +37,7 @@ export async function recordLedgerEntry(
       currency: params.currency ?? "USD",
       investmentId: params.investmentId,
       opportunityId: params.opportunityId,
+      campaignId: params.campaignId,
       description: params.description,
       metadata: params.metadata as Prisma.InputJsonValue | undefined,
       ...(params.createdAt ? { createdAt: params.createdAt } : {}),

@@ -39,6 +39,29 @@ export async function getAppPerformanceSummary(appId: string, days = 30) {
   };
 }
 
+export async function getAppPerformanceOffers(appId: string) {
+  const offers = await prisma.performanceOffer.findMany({
+    where: { appId },
+    include: {
+      creatives: true,
+      targetingTemplates: true,
+      campaigns: { include: { conversions: true } },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  return offers.map((offer) => {
+    const conversions = offer.campaigns.flatMap((c) => c.conversions);
+    return {
+      offer,
+      campaignCount: offer.campaigns.length,
+      conversionsDelivered: conversions.length,
+      grossOwed: conversions.reduce((s, c) => s + Number(c.grossPayout), 0),
+      marketplaceFeeEarned: conversions.reduce((s, c) => s + Number(c.marketplaceFee), 0),
+    };
+  });
+}
+
 export async function getAppObligations(appId: string) {
   const opportunities = await prisma.investmentOpportunity.findMany({
     where: { appId },

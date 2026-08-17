@@ -86,6 +86,21 @@ enum LedgerEntryType {
   INVESTOR_PAYOUT
   REFUND
   REVERSAL
+  CONVERSION_PAYOUT_OWED
+  MARKETPLACE_FEE
+  MARKETER_PAYOUT
+}
+
+enum OfferStatus {
+  DRAFT
+  PENDING_APPROVAL
+  OPEN
+  PAUSED
+  CLOSED
+}
+
+enum ConversionEvent {
+  VERIFIED_SUBSCRIBER
 }
 
 enum SyncJobType {
@@ -145,6 +160,10 @@ model InvestorProfile {
 
   investments Investment[]
   payouts     Payout[]
+  // Reuses the same underlying identity/role as an "investor" — the CPA
+  // marketplace pivot renames this to "marketer" everywhere in the UI,
+  // but doesn't need a separate user role or profile table to do it.
+  marketerCampaigns MarketingCampaign[] @relation("MarketerCampaigns")
 }
 
 model DeveloperProfile {
@@ -189,6 +208,7 @@ model App {
   customers              AppCustomer[]
   transactions           AppTransaction[]
   opportunities          InvestmentOpportunity[]
+  performanceOffers      PerformanceOffer[]
 
   @@index([developerId])
 }
@@ -253,14 +273,43 @@ model MarketingCampaign {
   isMock                Boolean  @default(true)
   createdAt             DateTime @default(now())
 
+  // Set only for a campaign launched by a marketer against a
+  // PerformanceOffer (the CPA-marketplace pivot) — null for a developer's
+  // own campaign backing standing revenue-share funding terms. The two
+  // models share this table because they share the exact same
+  // spend/attribution/tracking pipeline; only how the resulting revenue
+  // gets paid out differs (see attribution-revenue-engine.ts).
+  marketerId            String?
+  marketer              InvestorProfile? @relation("MarketerCampaigns", fields: [marketerId], references: [id], onDelete: SetNull)
+  offerId               String?
+  offer                 PerformanceOffer? @relation(fields: [offerId], references: [id], onDelete: SetNull)
+  creativeId            String?
+  creative              OfferCreative? @relation(fields: [creativeId], references: [id], onDelete: SetNull)
+  targetingTemplateId   String?
+  targetingTemplate     OfferTargetingTemplate? @relation(fields: [targetingTemplateId], references: [id], onDelete: SetNull)
+  // What the marketer told us they're spending directly with the ad
+  // platform. MagicBeans never processes this payment — no deposit, no
+  // pooled capital — it's informational only, for display against the
+  // ad platform's real imported spend. See CAMPAIGN_ALLOCATION vs.
+  // AD_SPEND in the old investor model for contrast: there is no
+  // equivalent "capital deployed by the platform" step here.
+  declaredBudget        Decimal? @db.Decimal(12, 2)
+  durationDays          Int?
+  launchedAt            DateTime?
+
   dailyMetrics          CampaignDailyMetric[]
   attributedInstalls    AttributedInstall[]
   attributedEvents      AttributedEvent[]
   revenueAttributions   RevenueAttribution[]
   capitalAllocations    CapitalAllocation[]
+  conversions           CampaignConversion[]
+  payouts               Payout[]
+  ledgerEntries         LedgerEntry[]
 
   @@index([appId])
   @@index([advertisingAccountId])
+  @@index([marketerId])
+  @@index([offerId])
 }
 
 model CampaignDailyMetric {
@@ -357,6 +406,7 @@ model AppCustomer {
 
   transactions   AppTransaction[]
   installs       AttributedInstall[]
+  conversions    CampaignConversion[]
 
   @@unique([appId, appUserId])
   @@index([appId])
@@ -409,6 +459,7 @@ model RevenueAttribution {
   reversal            RevenueAttribution? @relation("Reversal")
 
   revenueShareAccruals RevenueShareAccrual[]
+  conversion           CampaignConversion?
 
   @@index([campaignId])
   @@index([investmentId])
@@ -539,6 +590,8 @@ model Payout {
   investor         InvestorProfile @relation(fields: [investorId], references: [id], onDelete: Cascade)
   investmentId     String?
   investment       Investment? @relation(fields: [investmentId], references: [id], onDelete: SetNull)
+  campaignId       String?
+  campaign         MarketingCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
 
   amount           Decimal  @db.Decimal(12, 2)
   status           PayoutStatus @default(PENDING)
@@ -551,6 +604,107 @@ model Payout {
 
   @@index([investorId])
   @@index([investmentId])
+  @@index([campaignId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// CPA marketplace (the pivot)
+// ─────────────────────────────────────────────────────────────────────────
+// A developer posts a paid-per-result offer instead of standing revenue-
+// share terms: "$35 per verified subscriber." A marketer accepts the
+// offer, picks from the developer's pre-approved creative/targeting
+// options, declares a budget they're funding directly with the ad
+// platform (MagicBeans never touches that leg of the money — see
+// MarketingCampaign.declaredBudget), and launches a campaign. Payout is a
+// flat rate per verified conversion, not a share of revenue: this is a
+// services/marketplace transaction (developer is the client, marketer is
+// the contractor, MagicBeans is the marketplace taking a fee), not an
+// investment contract. See COMPLIANCE_NOTES.md for why that distinction
+// is the entire point of this model — still needs real legal review
+// before real money, this only changes which question to ask a lawyer.
+
+model PerformanceOffer {
+  id                    String   @id @default(cuid())
+  appId                 String
+  app                   App      @relation(fields: [appId], references: [id], onDelete: Cascade)
+
+  title                 String
+  description           String
+  conversionEvent       ConversionEvent @default(VERIFIED_SUBSCRIBER)
+  payoutPerConversion   Decimal  @db.Decimal(10, 2)
+  marketplaceFeePercent Decimal  @db.Decimal(5, 2) @default(10)
+  minBudget             Decimal  @db.Decimal(10, 2) @default(50)
+  maxBudget             Decimal? @db.Decimal(10, 2)
+
+  // Informational only, same spirit as InvestmentOpportunity's
+  // historicalROAS/historicalCAC — never a guarantee, always labeled
+  // "Projection — not guaranteed" wherever rendered.
+  historicalCPA         Decimal? @db.Decimal(10, 2)
+
+  status                OfferStatus @default(PENDING_APPROVAL)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  creatives             OfferCreative[]
+  targetingTemplates    OfferTargetingTemplate[]
+  campaigns             MarketingCampaign[]
+
+  @@index([appId])
+  @@index([status])
+}
+
+model OfferCreative {
+  id          String   @id @default(cuid())
+  offerId     String
+  offer       PerformanceOffer @relation(fields: [offerId], references: [id], onDelete: Cascade)
+
+  name        String
+  channel     IntegrationProvider
+  description String
+  createdAt   DateTime @default(now())
+
+  campaigns   MarketingCampaign[]
+
+  @@index([offerId])
+}
+
+model OfferTargetingTemplate {
+  id          String   @id @default(cuid())
+  offerId     String
+  offer       PerformanceOffer @relation(fields: [offerId], references: [id], onDelete: Cascade)
+
+  name        String
+  channel     IntegrationProvider
+  description String
+  createdAt   DateTime @default(now())
+
+  campaigns   MarketingCampaign[]
+
+  @@index([offerId])
+}
+
+// One row per uniquely-acquired paying customer credited to a marketer's
+// campaign — the DB-level unique constraint on (campaignId, appCustomerId)
+// is what actually enforces "pay once per verified subscriber," not
+// application logic, so a retried/duplicated webhook can never double-pay.
+model CampaignConversion {
+  id                   String   @id @default(cuid())
+  campaignId           String
+  campaign             MarketingCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  appCustomerId        String
+  appCustomer          AppCustomer @relation(fields: [appCustomerId], references: [id], onDelete: Cascade)
+  revenueAttributionId String   @unique
+  revenueAttribution   RevenueAttribution @relation(fields: [revenueAttributionId], references: [id], onDelete: Cascade)
+
+  grossPayout          Decimal  @db.Decimal(10, 2)
+  marketplaceFee       Decimal  @db.Decimal(10, 2)
+  netPayout            Decimal  @db.Decimal(10, 2)
+
+  verifiedAt           DateTime @default(now())
+  reversedAt           DateTime?
+
+  @@unique([campaignId, appCustomerId])
+  @@index([campaignId])
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -568,6 +722,8 @@ model LedgerEntry {
   investment     Investment? @relation(fields: [investmentId], references: [id], onDelete: SetNull)
   opportunityId  String?
   opportunity    InvestmentOpportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+  campaignId     String?
+  campaign       MarketingCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
 
   description    String
   metadata       Json?
@@ -575,6 +731,7 @@ model LedgerEntry {
 
   @@index([investmentId])
   @@index([opportunityId])
+  @@index([campaignId])
   @@index([type])
 }
 
