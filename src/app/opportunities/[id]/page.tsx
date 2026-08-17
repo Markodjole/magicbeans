@@ -2,18 +2,22 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { getOpportunityDetail } from "@/lib/queries/marketplace";
+import { computeReturnTimeline } from "@/lib/engine/return-timeline";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { DataSourceBadge } from "@/components/data-source-badge";
 import { InvestForm } from "@/components/invest-form";
 import { SpendRevenueChart } from "@/components/charts/spend-revenue-chart";
+import { ReturnTimelineCard } from "@/components/return-timeline-card";
+import { InfoTooltip } from "@/components/info-tooltip";
+import type { GlossaryTerm } from "@/lib/glossary";
 import { formatCurrency, formatDate, formatMultiple, formatPercent } from "@/lib/utils";
 
 const CHANNEL_LABELS: Record<string, string> = { TIKTOK: "TikTok", META: "Meta", GOOGLE_ADS: "Google Ads" };
 
 export default async function OpportunityDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const result = await getOpportunityDetail(id);
+  const [result, timeline] = await Promise.all([getOpportunityDetail(id), computeReturnTimeline(id)]);
   if (!result) notFound();
   const { opportunity, campaigns, stats, dailySeries } = result;
   const session = await auth();
@@ -33,8 +37,9 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
           </p>
         </div>
         {opportunity.riskAssessment && (
-          <Badge variant="outline" className="text-base">
-            Risk {opportunity.riskAssessment.grade} ({opportunity.riskAssessment.score}/100)
+          <Badge variant="outline" className="flex items-center gap-1.5 text-base">
+            Investment Grade {opportunity.riskAssessment.grade} ({opportunity.riskAssessment.score}/100)
+            <InfoTooltip term="riskGrade" />
           </Badge>
         )}
       </div>
@@ -47,12 +52,12 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
           </Section>
 
           {/* Historical performance */}
-          <Section title="Historical performance">
+          <Section title="Historical performance" term="historicalWindow">
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              <MetricTile label="Ad spend" value={formatCurrency(stats.totalSpend)} source={channelsLabel} isMock={isMock} />
-              <MetricTile label="Attributed revenue" value={formatCurrency(stats.totalAttributedRevenue)} source="RevenueCat" isMock={isMock} />
-              <MetricTile label="Installs" value={stats.totalInstalls.toLocaleString()} source="AppsFlyer" isMock={isMock} />
-              <MetricTile label="Paying customers" value={stats.payingCustomers.toLocaleString()} source="RevenueCat" isMock={isMock} />
+              <MetricTile label="Ad spend" term="adSpend" value={formatCurrency(stats.totalSpend)} source={channelsLabel} isMock={isMock} />
+              <MetricTile label="Attributed revenue" term="attributedRevenue" value={formatCurrency(stats.totalAttributedRevenue)} source="RevenueCat" isMock={isMock} />
+              <MetricTile label="Installs" term="installs" value={stats.totalInstalls.toLocaleString()} source="AppsFlyer" isMock={isMock} />
+              <MetricTile label="Paying customers" term="payingCustomers" value={stats.payingCustomers.toLocaleString()} source="RevenueCat" isMock={isMock} />
             </div>
             {dailySeries.length > 0 && (
               <Card className="mt-6">
@@ -66,6 +71,13 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
             )}
           </Section>
 
+          {/* Return timeline */}
+          {timeline && (
+            <Section title="Return timeline">
+              <ReturnTimelineCard timeline={timeline} />
+            </Section>
+          )}
+
           {/* Marketing strategy */}
           <Section title="Marketing strategy">
             <p className="text-slate-600">
@@ -76,13 +88,14 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
           </Section>
 
           {/* Revenue model */}
-          <Section title="Revenue model">
+          <Section title="Revenue model" term="recoupThenSplit">
             <p className="text-slate-600">
               {opportunity.app.name} monetizes via {opportunity.app.pricingModel ?? "subscription"}
               {opportunity.app.subscriptionPrice ? ` at ${formatCurrency(opportunity.app.subscriptionPrice)}/mo` : ""}.
-              Revenue from users attributed to any of its campaigns is split {formatPercent(opportunity.investorRevenueSharePercent)}{" "}
-              to investors / {formatPercent(opportunity.developerRevenueSharePercent)} to the developer, up to the
-              return cap below.
+              Revenue from users attributed to any of its campaigns pays back your principal first, then splits{" "}
+              {formatPercent(opportunity.investorRevenueSharePercent)} to investors /{" "}
+              {formatPercent(opportunity.developerRevenueSharePercent)} to the developer on anything above that, up
+              to the return cap below.
             </p>
           </Section>
 
@@ -130,7 +143,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
           )}
 
           {/* Data sources */}
-          <Section title="Data sources">
+          <Section title="Data sources" term={isMock ? "simulated" : undefined}>
             <div className="flex flex-wrap gap-2">
               {channels.map((channel) => (
                 <DataSourceBadge key={channel} provider={channel} isMock={isMock} />
@@ -145,18 +158,23 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
         <div className="flex flex-col gap-6">
           <Card>
             <CardContent className="flex flex-col gap-4 pt-6">
-              <p className="text-sm text-slate-500">
-                {formatCurrency(opportunity.amountFunded)} invested under these terms so far. Funding is ongoing —
-                your investment starts earning as soon as it&apos;s made, not once any threshold is reached.
+              <p className="flex items-start gap-1 text-sm text-slate-500">
+                <span>
+                  {formatCurrency(opportunity.amountFunded)} invested under these{" "}
+                  <span className="underline decoration-dotted">standing funding terms</span> so far. Funding is
+                  ongoing — your investment starts earning as soon as it&apos;s made, not once any threshold is
+                  reached.
+                </span>
+                <InfoTooltip term="fundingTerms" className="mt-0.5 shrink-0" />
               </p>
 
               <dl className="grid grid-cols-2 gap-y-3 text-sm">
-                <Term label="Investor revenue share" value={formatPercent(opportunity.investorRevenueSharePercent)} />
-                <Term label="Return cap" value={formatMultiple(opportunity.returnCapMultiple)} />
-                <Term label="Minimum investment" value={formatCurrency(opportunity.minimumInvestment)} />
+                <Term label="Investor revenue share" term="investorShare" value={formatPercent(opportunity.investorRevenueSharePercent)} />
+                <Term label="Return cap" term="returnCap" value={formatMultiple(opportunity.returnCapMultiple)} />
+                <Term label="Minimum investment" term="minimumInvestment" value={formatCurrency(opportunity.minimumInvestment)} />
                 <Term label="Terms open since" value={opportunity.startDate ? formatDate(opportunity.startDate) : formatDate(opportunity.createdAt)} />
-                <Term label="Historical ROAS" value={opportunity.historicalROAS ? formatMultiple(opportunity.historicalROAS) : "—"} />
-                <Term label="Historical CAC" value={opportunity.historicalCAC ? formatCurrency(opportunity.historicalCAC) : "—"} />
+                <Term label="Historical ROAS" term="roas" value={opportunity.historicalROAS ? formatMultiple(opportunity.historicalROAS) : "—"} />
+                <Term label="Historical CAC" term="cac" value={opportunity.historicalCAC ? formatCurrency(opportunity.historicalCAC) : "—"} />
               </dl>
 
               {session?.user?.role === "INVESTOR" ? (
@@ -195,19 +213,37 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, term, children }: { title: string; term?: GlossaryTerm; children: React.ReactNode }) {
   return (
     <section>
-      <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
+      <h2 className="flex items-center gap-1.5 text-lg font-semibold text-slate-900">
+        {title}
+        {term && <InfoTooltip term={term} />}
+      </h2>
       <div className="mt-3">{children}</div>
     </section>
   );
 }
 
-function MetricTile({ label, value, source, isMock }: { label: string; value: string; source: string; isMock: boolean }) {
+function MetricTile({
+  label,
+  term,
+  value,
+  source,
+  isMock,
+}: {
+  label: string;
+  term?: GlossaryTerm;
+  value: string;
+  source: string;
+  isMock: boolean;
+}) {
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-4">
-      <p className="text-xs text-slate-500">{label}</p>
+      <p className="flex items-center gap-1 text-xs text-slate-500">
+        {label}
+        {term && <InfoTooltip term={term} />}
+      </p>
       <p className="mt-1 text-xl font-semibold text-slate-900">{value}</p>
       <div className="mt-2">
         <DataSourceBadge provider={source} isMock={isMock} />
@@ -216,10 +252,13 @@ function MetricTile({ label, value, source, isMock }: { label: string; value: st
   );
 }
 
-function Term({ label, value }: { label: string; value: string }) {
+function Term({ label, term, value }: { label: string; term?: GlossaryTerm; value: string }) {
   return (
     <div>
-      <dt className="text-xs text-slate-400">{label}</dt>
+      <dt className="flex items-center gap-1 text-xs text-slate-400">
+        {label}
+        {term && <InfoTooltip term={term} />}
+      </dt>
       <dd className="font-medium text-slate-900">{value}</dd>
     </div>
   );

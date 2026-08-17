@@ -6,6 +6,7 @@ import { estimateInvestorReturn } from "@/lib/engine/projection-math";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { InfoTooltip } from "@/components/info-tooltip";
 import { formatCurrency } from "@/lib/utils";
 
 export function InvestForm({
@@ -67,17 +68,24 @@ export function InvestForm({
             If attributed revenue tracks this campaign&apos;s historical {historicalROAS?.toFixed(2)}x ROAS, your
             estimated revenue share — and how that compares to the {formatCurrency(Number(amountInput))} you&apos;d put in:
           </p>
-          <div className="mt-2 grid grid-cols-3 gap-2 text-center text-sm">
+          <div className="mt-2 flex items-center gap-1 text-[10px] uppercase tracking-wide text-slate-400">
+            Scenarios <InfoTooltip term="bearBaseBull" />
+          </div>
+          <div className="mt-1 grid grid-cols-3 gap-2 text-center text-sm">
             <EstimateStat label="Bear" value={estimate.bear} amount={Number(amountInput)} />
             <EstimateStat label="Base" value={estimate.base} amount={Number(amountInput)} emphasize />
             <EstimateStat label="Bull" value={estimate.bull} amount={Number(amountInput)} />
           </div>
-          <p className="mt-2 text-xs text-slate-400">
-            Revenue share only — your principal isn&apos;t separately returned, so a scenario below your contribution
-            (shown in red) means a net loss, not just a smaller gain. Capped at your {returnCapMultiple.toFixed(2)}x
-            return cap ({formatCurrency(estimate.maxPayable)}){estimate.capApplied ? " — bull case hits the cap." : "."}{" "}
-            Assumes your contribution&apos;s proportional share; actual payout depends on total capital deployed
-            alongside yours.
+          <p className="mt-2 flex items-start gap-1 text-xs text-slate-400">
+            <span>
+              Revenue share only — your principal isn&apos;t separately returned, so a scenario below your
+              contribution (shown in red) means a net loss, not just a smaller gain. Capped at your{" "}
+              {returnCapMultiple.toFixed(2)}x <span className="underline decoration-dotted">return cap</span> (
+              {formatCurrency(estimate.maxPayable)}){estimate.capApplied ? " — bull case hits the cap." : "."} Assumes
+              your contribution&apos;s proportional share; actual payout depends on total capital deployed alongside
+              yours.
+            </span>
+            <InfoTooltip term="returnCap" className="mt-0.5 shrink-0" />
           </p>
         </div>
       )}
