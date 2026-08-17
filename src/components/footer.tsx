@@ -13,7 +13,7 @@ export function Footer() {
           for details.
         </div>
         <div className="mt-6 flex flex-col items-start justify-between gap-4 text-sm text-slate-500 sm:flex-row sm:items-center">
-          <p>&copy; {new Date().getFullYear()} GrowthFund. This is not an equity marketplace.</p>
+          <p>&copy; {new Date().getFullYear()} MagicBeans. This is not an equity marketplace.</p>
           <div className="flex gap-4">
             <Link href="/compliance" className="hover:text-slate-700">
               Compliance

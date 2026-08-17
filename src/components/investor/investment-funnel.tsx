@@ -17,7 +17,7 @@ export function InvestmentFunnel({ investment, funnel }: { investment: Investmen
     {
       label: "Your investment",
       value: formatCurrency(investment.principalAmount),
-      provider: "GrowthFund",
+      provider: "MagicBeans",
       isMock: false,
     },
     {
@@ -47,7 +47,7 @@ export function InvestmentFunnel({ investment, funnel }: { investment: Investmen
     {
       label: `Your ${formatPercent(investment.opportunity.investorRevenueSharePercent)} share`,
       value: formatCurrency(investment.investorRevenueEarned),
-      provider: "GrowthFund",
+      provider: "MagicBeans",
       isMock: false,
     },
   ];

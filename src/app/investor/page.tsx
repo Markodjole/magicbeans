@@ -7,7 +7,7 @@ import { SummaryCards } from "@/components/investor/summary-cards";
 import { PortfolioTable } from "@/components/investor/portfolio-table";
 import { CumulativePayoutChart } from "@/components/investor/cumulative-payout-chart";
 
-export const metadata = { title: "Dashboard — GrowthFund" };
+export const metadata = { title: "Dashboard — MagicBeans" };
 
 export default async function InvestorDashboardPage() {
   const profile = await requireInvestorProfile();

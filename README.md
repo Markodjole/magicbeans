@@ -1,4 +1,4 @@
-# GrowthFund
+# MagicBeans
 
 A working prototype of a marketplace where mobile app developers set standing **revenue-share
 terms** for future marketing investment (no funding target, no campaign-specific raise — the

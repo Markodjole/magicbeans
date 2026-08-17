@@ -1,7 +1,7 @@
 import { OpportunityCard } from "@/components/opportunity-card";
 import { listOpportunities } from "@/lib/queries/marketplace";
 
-export const metadata = { title: "Opportunities — GrowthFund" };
+export const metadata = { title: "Opportunities — MagicBeans" };
 
 export default async function OpportunitiesPage({
   searchParams,

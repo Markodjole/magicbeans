@@ -9,7 +9,7 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "GrowthFund — Fund app growth, share in attributable revenue",
+  title: "MagicBeans — Fund app growth, share in attributable revenue",
   description:
     "A marketplace where investors fund verified app marketing campaigns and earn a share of the attributable revenue those campaigns produce.",
 };

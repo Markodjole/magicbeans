@@ -1,13 +1,13 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-export const metadata = { title: "Compliance — GrowthFund" };
+export const metadata = { title: "Compliance — MagicBeans" };
 
 export default function CompliancePage() {
   return (
     <div className="mx-auto max-w-3xl px-6 py-16">
       <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Compliance notes</h1>
       <p className="mt-3 text-slate-600">
-        GrowthFund is a working prototype. This page is deliberately blunt about what has, and has not, been
+        MagicBeans is a working prototype. This page is deliberately blunt about what has, and has not, been
         resolved before any version of this product could handle real money.
       </p>
 

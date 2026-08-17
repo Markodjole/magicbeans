@@ -14,7 +14,7 @@ numbers into a LIVE data source.
 |---|---|---|---|---|
 | TikTok Ads | ✅ | ✅ full | ✅ full (reporting/campaigns; OAuth `connect()` still stub — sandbox tokens don't need it, 2026-08-16) | `TIKTOK_APP_ID`, `TIKTOK_APP_SECRET`, `TIKTOK_REDIRECT_URI` |
 | Meta Ads | ✅ | ✅ full | ✅ full (reporting/campaigns; OAuth `connect()` still stub — sandbox tokens don't need it, 2026-08-16) | `META_APP_ID`, `META_APP_SECRET`, `META_REDIRECT_URI` |
-| Google Ads | ✅ | ✅ full | 🚧 stub | `GOOGLE_ADS_CLIENT_ID`, `GOOGLE_ADS_CLIENT_SECRET`, `GOOGLE_ADS_DEVELOPER_TOKEN`, `GOOGLE_ADS_REFRESH_TOKEN` |
+| Google Ads | ✅ | ✅ full | ✅ full (reporting/campaigns; OAuth `connect()` still stub, 2026-08-16) | `GOOGLE_ADS_CLIENT_ID`, `GOOGLE_ADS_CLIENT_SECRET`, `GOOGLE_ADS_DEVELOPER_TOKEN`, `GOOGLE_ADS_REFRESH_TOKEN` |
 | AppsFlyer | ✅ | ✅ full | ✅ full (verified live 2026-08-15) | `APPSFLYER_API_TOKEN`, `APPSFLYER_APP_ID` |
 | Adjust | ✅ | ✅ full | 🚧 stub | `ADJUST_API_TOKEN`, `ADJUST_APP_TOKEN` |
 | RevenueCat | ✅ | ✅ full | ✅ full (REST reconciliation + webhook, 2026-08-15) | `REVENUECAT_API_KEY` |
@@ -89,11 +89,16 @@ real sandbox insights response with a known budget. Also unverified: exact `me/a
 and which `actions[].action_type` represents "conversions" for a given campaign's actual objective
 (`mobile_app_install` is used as the likely candidate).
 
-**Google Ads** — implement OAuth connect flows and the reporting API calls in
-`src/lib/providers/advertising/google.ts`. Currently documents its base API surface in a comment;
-verify current endpoint paths, required scopes, and response schemas against Google's official Ads
-API docs (versioned, changes on deprecation schedules — do not trust this file's comments as a
-source of truth by the time you read this).
+**Google Ads** — done (2026-08-16) for the reporting/read path. `src/lib/providers/advertising/google.ts`
+calls the real Google Ads API v25 (`googleads.googleapis.com/v25`), GAQL queries via POST
+`/customers/{id}/googleAds:search`. Auth is two-part: a standard Google OAuth2 refresh-token
+exchange for a short-lived access token, PLUS a separate `developer-token` header required on every
+call — don't confuse the two. Monetary fields are in MICROS (divide by 1,000,000), confirmed from a
+real documented example. `connect()` (production OAuth) is still a stub. Some field mappings
+weren't confirmed from a live response this session (flagged in the file's doc comment rather than
+guessed): `campaignBudget.amountMicros`, the exact `campaign.status` enum values, and
+`campaign.startDate`'s presence — verify against one real account response before trusting beyond
+testing.
 
 **AppsFlyer / Adjust** — implement the Pull API (or equivalent reporting endpoint) calls in
 `src/lib/providers/attribution/{appsflyer,adjust}.ts`.

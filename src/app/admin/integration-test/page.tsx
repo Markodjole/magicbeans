@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { ActionButton } from "@/components/admin/action-button";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
 
-export const metadata = { title: "Integration test — GrowthFund Admin" };
+export const metadata = { title: "Integration test — MagicBeans Admin" };
 
 export default async function IntegrationTestPage({
   searchParams,

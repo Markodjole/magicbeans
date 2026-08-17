@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
-export const metadata = { title: "How it works — GrowthFund" };
+export const metadata = { title: "How it works — MagicBeans" };
 
 const INVESTOR_STEPS = [
   { title: "Discover", body: "Browse apps with verified historical marketing performance — real spend, real ROAS, real retention." },
@@ -22,7 +22,7 @@ const DEVELOPER_STEPS = [
 export default function HowItWorksPage() {
   return (
     <div className="mx-auto max-w-5xl px-6 py-16">
-      <h1 className="text-3xl font-semibold tracking-tight text-slate-900">How GrowthFund works</h1>
+      <h1 className="text-3xl font-semibold tracking-tight text-slate-900">How MagicBeans works</h1>
       <p className="mt-3 max-w-2xl text-slate-600">
         Investors fund a specific marketing campaign, not a company. The platform verifies advertising spend, tracks
         the users that campaign brought in, and tracks the revenue those users generate — so every dollar of

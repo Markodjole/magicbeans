@@ -18,7 +18,7 @@ import { FlagSuspiciousForm } from "@/components/admin/flag-suspicious-form";
 import { formatCurrency, formatDate, formatDateTime, formatMultiple, formatPercent } from "@/lib/utils";
 import type { IntegrationMode, SyncJobStatus } from "@/generated/prisma/client";
 
-export const metadata = { title: "Admin — GrowthFund" };
+export const metadata = { title: "Admin — MagicBeans" };
 
 export default async function AdminPage({ searchParams }: { searchParams: Promise<{ type?: string }> }) {
   await requireRole("ADMIN");
