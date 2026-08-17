@@ -111,5 +111,5 @@ export async function handleTransactionRefund(transactionId: string, refundedAt:
         });
       }
     }
-  });
+  }, { timeout: 30_000, maxWait: 10_000 });
 }

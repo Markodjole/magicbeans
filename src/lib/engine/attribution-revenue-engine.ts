@@ -201,7 +201,7 @@ async function processTransaction(transactionId: string) {
         },
       });
     }
-  });
+  }, { timeout: 30_000, maxWait: 10_000 });
 }
 
 export { applyRevenueWaterfall, eligibleAttributedAmount, isEligibleConfidence };

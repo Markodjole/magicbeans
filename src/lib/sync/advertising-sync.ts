@@ -73,7 +73,7 @@ export async function syncAdvertisingForApp(appId: string, start: Date, end: Dat
                 description: `${connection.provider} spend on ${campaign.name} for ${metric.date}`,
                 metadata: { campaignId: campaign.id, date: metric.date, provider: connection.provider },
               });
-            });
+            }, { timeout: 30_000, maxWait: 10_000 });
           }
         }
       }

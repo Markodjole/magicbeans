@@ -65,7 +65,7 @@ export async function createInvestment(params: {
     });
 
     return investment.id;
-  });
+  }, { timeout: 30_000, maxWait: 10_000 });
 
   return { investmentId };
 }

@@ -89,5 +89,5 @@ export async function runCapitalDeploymentForApp(appId: string): Promise<void> {
         });
       }
     }
-  });
+  }, { timeout: 30_000, maxWait: 10_000 });
 }

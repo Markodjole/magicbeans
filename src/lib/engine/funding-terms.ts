@@ -44,7 +44,7 @@ export async function openFundingTerms(params: {
         historicalLTV: params.historicalLTV,
       },
     });
-  });
+  }, { timeout: 30_000, maxWait: 10_000 });
 
   return { opportunityId: opportunity.id };
 }

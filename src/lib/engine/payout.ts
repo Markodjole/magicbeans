@@ -43,7 +43,7 @@ export async function runPayoutForInvestment(investmentId: string): Promise<{ pa
       description: "Investor payout",
       metadata: { externalPayoutId: payout.externalPayoutId },
     });
-  });
+  }, { timeout: 30_000, maxWait: 10_000 });
 
   return { paid: owed };
 }
