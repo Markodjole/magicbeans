@@ -36,14 +36,22 @@ export type ReturnTimelinePoint = {
   extrapolated: boolean;
 };
 
+export type ReturnTimelineSeriesPoint = {
+  day: number;
+  cumulativeReturn: number;
+  extrapolated: boolean;
+};
+
 export type ReturnTimeline = {
   referenceAmount: number;
   points: ReturnTimelinePoint[];
+  series: ReturnTimelineSeriesPoint[];
+  returnCapDollarAmount: number;
+  observedHistoryDays: number;
   historicalCAC: number | null;
   avgDaysToRecoupPrincipal: number | null;
   avgDaysToReturnCap: number | null;
   investmentsAnalyzed: number;
-  observedHistoryDays: number;
 };
 
 export async function computeReturnTimeline(
@@ -114,19 +122,36 @@ export async function computeReturnTimeline(
   const developerSharePercent = Number(opportunity.developerRevenueSharePercent);
   const returnCapMultiple = Number(opportunity.returnCapMultiple);
 
-  const points: ReturnTimelinePoint[] = HORIZONS_DAYS.map((days) => {
-    const { fraction, extrapolated } = fractionAtDay(days);
-    const revenueAtHorizon = referenceAmount * historicalROAS * fraction;
+  function projectedReturnAtDay(day: number): { investorAmount: number; extrapolated: boolean } {
+    const { fraction, extrapolated } = fractionAtDay(day);
+    const revenueAtDay = referenceAmount * historicalROAS * fraction;
     const waterfall = applyRevenueWaterfall({
-      slice: revenueAtHorizon,
+      slice: revenueAtDay,
       principalAmount: referenceAmount,
       returnCapMultiple,
       investorSharePercent,
       developerSharePercent,
       investorRevenueEarnedSoFar: 0,
     });
-    return { days, label: HORIZON_LABELS[days], projectedInvestorReturn: waterfall.investorAmount, extrapolated };
+    return { investorAmount: waterfall.investorAmount, extrapolated };
+  }
+
+  const points: ReturnTimelinePoint[] = HORIZONS_DAYS.map((days) => {
+    const { investorAmount, extrapolated } = projectedReturnAtDay(days);
+    return { days, label: HORIZON_LABELS[days], projectedInvestorReturn: investorAmount, extrapolated };
   });
+
+  const SERIES_STEP_DAYS = 5;
+  const SERIES_END_DAY = 365;
+  const series: ReturnTimelineSeriesPoint[] = [];
+  for (let day = 0; day <= SERIES_END_DAY; day += SERIES_STEP_DAYS) {
+    const { investorAmount, extrapolated } = projectedReturnAtDay(day);
+    series.push({ day, cumulativeReturn: round2(investorAmount), extrapolated });
+  }
+  if (series[series.length - 1].day !== SERIES_END_DAY) {
+    const { investorAmount, extrapolated } = projectedReturnAtDay(SERIES_END_DAY);
+    series.push({ day: SERIES_END_DAY, cumulativeReturn: round2(investorAmount), extrapolated });
+  }
 
   const investments = await prisma.investment.findMany({
     where: { opportunity: { appId: opportunity.appId } },
@@ -158,10 +183,12 @@ export async function computeReturnTimeline(
   return {
     referenceAmount,
     points,
+    series,
+    returnCapDollarAmount: round2(referenceAmount * returnCapMultiple),
+    observedHistoryDays,
     historicalCAC: opportunity.historicalCAC ? Number(opportunity.historicalCAC) : null,
     avgDaysToRecoupPrincipal: avg(recoupDays),
     avgDaysToReturnCap: avg(capDays),
     investmentsAnalyzed: investments.length,
-    observedHistoryDays,
   };
 }

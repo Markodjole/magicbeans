@@ -1,11 +1,21 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { InfoTooltip } from "@/components/info-tooltip";
+import { ReturnProjectionChart } from "@/components/charts/return-projection-chart";
 import { formatCurrency } from "@/lib/utils";
 import type { ReturnTimeline } from "@/lib/engine/return-timeline";
 
 export function ReturnTimelineCard({ timeline }: { timeline: ReturnTimeline }) {
-  const { referenceAmount, points, historicalCAC, avgDaysToRecoupPrincipal, avgDaysToReturnCap, investmentsAnalyzed } =
-    timeline;
+  const {
+    referenceAmount,
+    points,
+    series,
+    returnCapDollarAmount,
+    observedHistoryDays,
+    historicalCAC,
+    avgDaysToRecoupPrincipal,
+    avgDaysToReturnCap,
+    investmentsAnalyzed,
+  } = timeline;
 
   return (
     <Card>
@@ -14,12 +24,20 @@ export function ReturnTimelineCard({ timeline }: { timeline: ReturnTimeline }) {
           Return timeline <InfoTooltip term="returnTimeline" />
         </CardTitle>
         <p className="text-xs text-slate-500">
-          Projection — not guaranteed. What a {formatCurrency(referenceAmount)} investment might have back at each
-          point in time, based on how quickly this app&apos;s revenue has actually arrived historically.
+          Projection — not guaranteed. What a {formatCurrency(referenceAmount)} investment might have back over the
+          next year, based on how quickly this app&apos;s revenue has actually arrived historically — not a generic
+          curve applied to every app.
         </p>
       </CardHeader>
       <CardContent className="pt-0">
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <ReturnProjectionChart
+          series={series}
+          referenceAmount={referenceAmount}
+          returnCapDollarAmount={returnCapDollarAmount}
+          observedHistoryDays={observedHistoryDays}
+        />
+
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
           {points.map((p) => (
             <div key={p.days} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
               <p className="text-xs text-slate-500">{p.label}</p>
