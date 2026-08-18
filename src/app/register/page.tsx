@@ -39,7 +39,7 @@ export default async function RegisterPage({
       <Card>
         <CardHeader>
           <CardTitle>Create an account</CardTitle>
-          <CardDescription>Fund campaigns as an investor, or raise campaign funding as a developer.</CardDescription>
+          <CardDescription>Run campaigns and get paid per subscriber as a marketer, or post an offer as a developer.</CardDescription>
         </CardHeader>
         <CardContent>
           {params.error && (
@@ -63,7 +63,7 @@ export default async function RegisterPage({
               <div className="flex gap-4 text-sm">
                 <label className="flex items-center gap-2">
                   <input type="radio" name="role" value="INVESTOR" defaultChecked={defaultRole === "INVESTOR"} />
-                  Investor
+                  Marketer
                 </label>
                 <label className="flex items-center gap-2">
                   <input type="radio" name="role" value="DEVELOPER" defaultChecked={defaultRole === "DEVELOPER"} />

@@ -21,11 +21,11 @@ export async function Nav() {
             <Image src="/logo.png" alt="MagicBeans" width={116} height={40} priority className="h-9 w-auto" />
           </Link>
           <nav className="hidden items-center gap-6 text-sm font-medium text-slate-600 md:flex">
-            <Link href="/opportunities" className="hover:text-slate-900">
-              Opportunities
-            </Link>
             <Link href="/offers" className="hover:text-slate-900">
-              Performance offers
+              Offers
+            </Link>
+            <Link href="/opportunities" className="hover:text-slate-900">
+              Investing
             </Link>
             <Link href="/how-it-works" className="hover:text-slate-900">
               How it works

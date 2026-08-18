@@ -18,8 +18,14 @@ export default async function MarketerCampaignDetailPage({ params }: { params: P
     <div className="mx-auto max-w-5xl px-6 py-12">
       <p className="text-sm font-medium uppercase tracking-wide text-slate-400">{campaign.app.category}</p>
       <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-900">{campaign.name}</h1>
-      <p className="mt-2 text-slate-600">
-        {campaign.creative?.name} · {campaign.targetingTemplate?.name} · launched {formatDate(campaign.launchedAt ?? campaign.createdAt)}
+      <p className="mt-2 flex flex-wrap items-center gap-2 text-slate-600">
+        <span>
+          {campaign.creative?.name} · {campaign.targetingTemplate?.name} · launched{" "}
+          {formatDate(campaign.launchedAt ?? campaign.createdAt)}
+        </span>
+        <Badge variant={campaign.advertisingAccount?.marketerId ? "secondary" : "outline"}>
+          {campaign.advertisingAccount?.marketerId ? "Running on your ad account" : "MagicBeans-managed account"}
+        </Badge>
       </p>
 
       <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-5">

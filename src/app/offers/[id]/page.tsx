@@ -1,16 +1,28 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { auth } from "@/lib/auth";
-import { getPerformanceOfferDetail } from "@/lib/queries/marketplace";
+import { getPerformanceOfferDetail, getOfferCampaignHistory, getOfferPerformanceBreakdown } from "@/lib/queries/marketplace";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MarketerCampaignForm } from "@/components/marketer-campaign-form";
+import { OfferPerformanceHistory } from "@/components/offer-performance-history";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
 const CHANNEL_LABELS: Record<string, string> = { TIKTOK: "TikTok", META: "Meta", GOOGLE_ADS: "Google Ads" };
 
-export default async function PerformanceOfferDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function PerformanceOfferDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ creative?: string; targeting?: string; budget?: string; duration?: string }>;
+}) {
   const { id } = await params;
-  const offer = await getPerformanceOfferDetail(id);
+  const copyParams = await searchParams;
+  const [offer, campaignHistory, comboBreakdown] = await Promise.all([
+    getPerformanceOfferDetail(id),
+    getOfferCampaignHistory(id),
+    getOfferPerformanceBreakdown(id),
+  ]);
   if (!offer) notFound();
   const session = await auth();
 
@@ -42,8 +54,15 @@ export default async function PerformanceOfferDetailPage({ params }: { params: P
             </p>
           </section>
 
+          <section>
+            <h2 className="text-lg font-semibold text-slate-900">Campaign performance</h2>
+            <div className="mt-3">
+              <OfferPerformanceHistory offerId={offer.id} combos={comboBreakdown} campaigns={campaignHistory} />
+            </div>
+          </section>
+
           {session?.user?.role === "INVESTOR" ? (
-            <section>
+            <section id="launch">
               <h2 className="text-lg font-semibold text-slate-900">Launch a campaign</h2>
               <Card className="mt-3">
                 <CardContent className="pt-6">
@@ -64,6 +83,10 @@ export default async function PerformanceOfferDetailPage({ params }: { params: P
                       channel: CHANNEL_LABELS[t.channel] ?? t.channel,
                       description: t.description,
                     }))}
+                    initialCreativeId={copyParams.creative}
+                    initialTargetingTemplateId={copyParams.targeting}
+                    initialBudget={copyParams.budget ? Number(copyParams.budget) : undefined}
+                    initialDurationDays={copyParams.duration ? Number(copyParams.duration) : undefined}
                   />
                 </CardContent>
               </Card>

@@ -27,6 +27,9 @@ export function MarketerCampaignsTable({ campaigns }: { campaigns: MarketerCampa
                   {campaign.app.name}
                 </Link>
                 <p className="text-xs text-slate-500">{campaign.creative?.name} · {campaign.targetingTemplate?.name}</p>
+                <Badge variant={campaign.advertisingAccount?.marketerId ? "secondary" : "outline"} className="mt-1 text-[10px]">
+                  {campaign.advertisingAccount?.marketerId ? "Your ad account" : "MagicBeans-managed"}
+                </Badge>
               </td>
               <td className="px-4 py-3 text-slate-700">{formatCurrency(campaign.declaredBudget ?? 0)}</td>
               <td className="px-4 py-3 text-slate-700">{formatCurrency(realSpend)}</td>

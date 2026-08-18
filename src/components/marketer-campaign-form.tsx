@@ -19,6 +19,10 @@ export function MarketerCampaignForm({
   historicalCPA,
   creatives,
   targetingTemplates,
+  initialCreativeId,
+  initialTargetingTemplateId,
+  initialBudget,
+  initialDurationDays,
 }: {
   offerId: string;
   minBudget: number;
@@ -27,9 +31,14 @@ export function MarketerCampaignForm({
   historicalCPA: number | null;
   creatives: Option[];
   targetingTemplates: Option[];
+  /** Pre-fills from "Copy this campaign" — a genuinely exact clone, not just a suggestion. */
+  initialCreativeId?: string;
+  initialTargetingTemplateId?: string;
+  initialBudget?: number;
+  initialDurationDays?: number;
 }) {
   const [state, formAction, pending] = useActionState<CampaignState, FormData>(launchMarketerCampaign, initialState);
-  const [budget, setBudget] = useState(String(minBudget));
+  const [budget, setBudget] = useState(String(initialBudget ?? minBudget));
 
   // Derived from this app's own historical CPA, not an invented ratio —
   // if it doesn't have one yet, there's nothing honest to estimate.
@@ -44,7 +53,14 @@ export function MarketerCampaignForm({
         <Label>Choose a creative</Label>
         {creatives.map((c, i) => (
           <label key={c.id} className="flex cursor-pointer items-start gap-3 rounded-md border border-slate-200 p-3 text-sm has-[:checked]:border-slate-900 has-[:checked]:bg-slate-50">
-            <input type="radio" name="creativeId" value={c.id} required defaultChecked={i === 0} className="mt-1" />
+            <input
+              type="radio"
+              name="creativeId"
+              value={c.id}
+              required
+              defaultChecked={initialCreativeId ? c.id === initialCreativeId : i === 0}
+              className="mt-1"
+            />
             <span>
               <span className="font-medium text-slate-900">{c.name}</span>
               <span className="ml-2 text-xs text-slate-400">{c.channel}</span>
@@ -58,7 +74,14 @@ export function MarketerCampaignForm({
         <Label>Choose targeting</Label>
         {targetingTemplates.map((t, i) => (
           <label key={t.id} className="flex cursor-pointer items-start gap-3 rounded-md border border-slate-200 p-3 text-sm has-[:checked]:border-slate-900 has-[:checked]:bg-slate-50">
-            <input type="radio" name="targetingTemplateId" value={t.id} required defaultChecked={i === 0} className="mt-1" />
+            <input
+              type="radio"
+              name="targetingTemplateId"
+              value={t.id}
+              required
+              defaultChecked={initialTargetingTemplateId ? t.id === initialTargetingTemplateId : i === 0}
+              className="mt-1"
+            />
             <span>
               <span className="font-medium text-slate-900">{t.name}</span>
               <span className="ml-2 text-xs text-slate-400">{t.channel}</span>
@@ -66,6 +89,30 @@ export function MarketerCampaignForm({
             </span>
           </label>
         ))}
+      </fieldset>
+
+      <fieldset className="flex flex-col gap-2">
+        <Label>Whose ad account runs this?</Label>
+        <label className="flex cursor-pointer items-start gap-3 rounded-md border border-slate-200 p-3 text-sm has-[:checked]:border-slate-900 has-[:checked]:bg-slate-50">
+          <input type="radio" name="adAccountSource" value="own" className="mt-1" />
+          <span>
+            <span className="font-medium text-slate-900">My own account</span>
+            <p className="text-slate-500">
+              Connect your own TikTok/Meta account (demo). You&apos;re the advertiser of record — MagicBeans only
+              helps you build and track the campaign.
+            </p>
+          </span>
+        </label>
+        <label className="flex cursor-pointer items-start gap-3 rounded-md border border-slate-200 p-3 text-sm has-[:checked]:border-slate-900 has-[:checked]:bg-slate-50">
+          <input type="radio" name="adAccountSource" value="platform" defaultChecked className="mt-1" />
+          <span>
+            <span className="font-medium text-slate-900">Use MagicBeans as a shortcut</span>
+            <p className="text-slate-500">
+              No ad account setup needed — MagicBeans creates and runs the campaign on the app&apos;s connected
+              account for you.
+            </p>
+          </span>
+        </label>
       </fieldset>
 
       <div className="grid gap-6 sm:grid-cols-2">
@@ -87,7 +134,7 @@ export function MarketerCampaignForm({
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="durationDays">Campaign duration (days)</Label>
-          <Input id="durationDays" name="durationDays" type="number" min={1} max={90} defaultValue={7} required />
+          <Input id="durationDays" name="durationDays" type="number" min={1} max={90} defaultValue={initialDurationDays ?? 7} required />
         </div>
       </div>
 

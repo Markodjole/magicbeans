@@ -164,6 +164,7 @@ model InvestorProfile {
   // marketplace pivot renames this to "marketer" everywhere in the UI,
   // but doesn't need a separate user role or profile table to do it.
   marketerCampaigns MarketingCampaign[] @relation("MarketerCampaigns")
+  ownedAdAccounts   AdvertisingAccount[] @relation("MarketerOwnedAdAccounts")
 }
 
 model DeveloperProfile {
@@ -247,9 +248,18 @@ model AdvertisingAccount {
   externalAccountId        String
   name                     String
 
+  // Set only when a marketer connected their OWN ad account (the
+  // Howey-avoidance lever: the marketer is genuinely the advertiser of
+  // record, not MagicBeans running the campaign for them). Null means
+  // this is the app's shared, developer-connected account — the
+  // "MagicBeans as a shortcut" path, same as before this existed.
+  marketerId               String?
+  marketer                 InvestorProfile? @relation("MarketerOwnedAdAccounts", fields: [marketerId], references: [id], onDelete: SetNull)
+
   campaigns                MarketingCampaign[]
 
   @@index([appId])
+  @@index([marketerId])
 }
 
 // ─────────────────────────────────────────────────────────────────────────
